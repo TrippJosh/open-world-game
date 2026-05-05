@@ -36,6 +36,25 @@ def safe_pad_refresh(pad, pad_top, pad_left, screen_top, screen_left, screen_bot
     except curses.error:
         pass
 
+def draw_inventory_sidebar(stdscr, inventory, inv_x, inv_width, max_y):
+    """Draw a fixed inventory sidebar on the right side of the screen."""
+    if inv_x < 0 or inv_width < 6:
+        return
+    inner_width = inv_width - 2
+    try:
+        stdscr.addstr(0, inv_x, "+" + "-" * inner_width + "+")
+        stdscr.addstr(1, inv_x, "|" + " INVENTORY".ljust(inner_width)[:inner_width] + "|")
+        stdscr.addstr(2, inv_x, "+" + "-" * inner_width + "+")
+
+        for y in range(3, max_y - 1):
+            item_idx = y - 3
+            item_text = inventory[item_idx] if item_idx < len(inventory) else ""
+            stdscr.addstr(y, inv_x, "|" + item_text.ljust(inner_width)[:inner_width] + "|")
+
+        stdscr.addstr(max_y - 1, inv_x, "+" + "-" * inner_width + "+")
+    except curses.error:
+        pass
+
 def get_tile_color(tile, has_color):
     """Return the color pair for a tile"""
     if not has_color:
@@ -96,6 +115,45 @@ DOORS = {
     ("caves", 29, 16): ("forest", 29, 16),        # Caves exit bottom right -> forest island door
 }
 
+CHESTS = {
+    ("forest", 24, 15): "Legendary Longsword", #chest in the island in the forest map
+    ("forest", 40, 11): "Padded Armour", #chest in the forest
+    ("caves", 13, 7): "Health Potion", #chest in the caves)
+}
+
+command_buffer = ""
+command_feedback = ""
+health = 100
+inventory_global = []
+
+def handle_command(command, parameter):
+    """Handle user commands from the command line.
+    Args:
+        command: The command word (e.g., 'use')
+        parameter: Everything after the first word (e.g., 'health potion')
+    """
+    global command_feedback, health, inventory_global
+    command = command.lower().strip()
+    parameter = parameter.lower().strip()
+    
+    if command == "use":
+        if parameter == "health potion":
+            if "Health Potion" in inventory_global:
+                inventory_global.remove("Health Potion")
+                health += 10
+                if health > 100:
+                    health = 100
+                command_feedback = f"Used Health Potion! Health: {health}"
+            else:
+                command_feedback = "You don't have a Health Potion!"
+        else:
+            command_feedback = f"Can't use: {parameter}"
+    elif command == "":
+        command_feedback = ""
+    else:
+        command_feedback = f"Unknown command: {command}"
+
+
 def main(stdscr):
     # Setup
     curses.cbreak()  # Respond to keys immediately
@@ -132,6 +190,26 @@ def main(stdscr):
     
     # Get terminal size
     max_y, max_x = stdscr.getmaxyx()
+    inventory_width = min(22, max(12, max_x // 4))
+    inventory_x = max_x - inventory_width
+    map_display_width = max(10, max_x - inventory_width)
+    map_display_bottom = max_y - 2 if max_y >= 2 else max_y - 1
+    message_row = max_y - 1
+
+    ########################################################################################inventory!
+    swords = ["Old Sword", "Blunt Longsword", "Arming Sword", "Fine Longsword", "Masterwork Longsword", "Legendary Longsword"] ###swords[0] will have the damage of damage[0]
+    damageList = [1, 2, 3, 5, 7, 10]
+    armor = ["Leather Garments", "Padded Armour", "Studded Leather", "Chainmail Suit", "Old Cuirass", "Legendary Plate Armour"] ###armor[0] will have the defense of defense[0]
+    defenseList = [1, 2, 4, 7, 9, 15]
+    inventory = [
+        "Old Sword",
+        "Leather Garments",
+        "Health Potion",
+    ]
+    global inventory_global, health
+    inventory_global = inventory
+    health = 100
+
     # Load the current map from MAPS dictionary
     terrain = [row[:] for row in MAPS[current_map]]  # Deep copy the map data
     
@@ -178,12 +256,16 @@ def main(stdscr):
     # Camera offset (what part of the map we're viewing)
     camera_x, camera_y = 0, 0
     
+    # Command line state
+    command_buffer_local = ""
+    command_feedback_local = ""
+    
     # Game loop
     running = True
     last_key = None
     while running:
         # Center camera on player
-        camera_x = max(0, min(player_x - max_x // 2, map_width - max_x))
+        camera_x = max(0, min(player_x - map_display_width // 2, map_width - map_display_width))
         camera_y = max(0, min(player_y - max_y // 2, map_height - max_y))
         
         # Redraw player at current position
@@ -194,28 +276,58 @@ def main(stdscr):
         stdscr.refresh()
         # Display the map portion visible on screen
         # refresh(pad_top_row, pad_left_col, screen_top_row, screen_left_col, screen_bottom_row, screen_right_col)
-        safe_pad_refresh(map_pad, camera_y, camera_x, 0, 0, max_y - 1, max_x - 1, max_y, max_x, map_height, map_width)
+        safe_pad_refresh(map_pad, camera_y, camera_x, 0, 0, map_display_bottom, map_display_width - 1, max_y, max_x, map_height, map_width)
+
+        # Draw fixed inventory sidebar on the right, reserving the bottom line for command input
+        if inventory_x >= 0:
+            draw_inventory_sidebar(stdscr, inventory_global, inventory_x, inventory_width, max_y - 1 if max_y >= 2 else max_y)
+
+        # Draw command line at the bottom with feedback or input prompt
+        try:
+            if command_feedback_local:
+                display_text = command_feedback_local
+            else:
+                display_text = "> " + command_buffer_local
+            stdscr.addstr(message_row, 0, display_text.ljust(max_x)[:max_x])
+        except curses.error:
+            pass
         
-        # Handle input (non-blocking - collect keys but don't process yet)
+        # Handle input (non-blocking - collect keys)
         try:
             key = stdscr.getch()
             if key != -1:  # -1 means no key pressed
                 if key == ord('q'):
                     running = False
-                elif key == ord(' '):  # Spacebar for interact
-                    # Could add chest opening or other interactions here
-                    pass
-                else:
+                elif key == ord('\n') or key == curses.KEY_ENTER:  # Enter to execute command
+                    if command_buffer_local.strip():
+                        parts = command_buffer_local.strip().split(None, 1)  # Split on first space
+                        cmd = parts[0]
+                        param = parts[1] if len(parts) > 1 else ""
+                        handle_command(cmd, param)
+                        command_feedback_local = command_feedback
+                    command_buffer_local = ""
+                elif key == curses.KEY_BACKSPACE or key == 127 or key == 8:  # Backspace
+                    command_buffer_local = command_buffer_local[:-1]
+                    command_feedback_local = ""
+                elif 32 <= key <= 126:  # Printable ASCII characters
+                    command_buffer_local += chr(key)
+                    command_feedback_local = ""
+                # Movement keys still work
+                elif key in [curses.KEY_UP, curses.KEY_DOWN, curses.KEY_LEFT, curses.KEY_RIGHT]:
                     last_key = key  # Store for processing on next turn
         except:
             pass
+        
+        # Clear feedback after a short duration
+        if command_feedback_local:
+            command_feedback_local = ""
         
         # Process turn-based movement every X milliseconds
         current_time = time.time() * 1000
         if current_time - last_turn_time >= turn_duration:
             last_turn_time = current_time
             
-            # Process movement from last key pressed
+            # Process movement from last key pressed (only arrow keys)
             if last_key is not None:
                 old_player_x, old_player_y = player_x, player_y
                 new_player_x, new_player_y = player_x, player_y
@@ -271,7 +383,7 @@ def main(stdscr):
                             # Draw player at new location
                             map_pad.addch(player_y, player_x, ord('@'), curses.A_BOLD)
                             # Force immediate display update using safe bounds
-                            safe_pad_refresh(map_pad, 0, 0, 0, 0, max_y - 1, max_x - 1, max_y, max_x, map_height, map_width)
+                            safe_pad_refresh(map_pad, 0, 0, 0, 0, max_y - 1, map_display_width - 1, max_y, max_x, map_height, map_width)
                 
                 # Restore terrain at old player position
                 if not map_changed and (old_player_x, old_player_y) != (player_x, player_y):
