@@ -66,47 +66,34 @@ def find_spawn_point(terrain):
                 return x, y
     return None
 
-# Map definitions
-MAPS = {
-    "overworld": """
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%._.........#..#...........~~~.......%
-%.....###...#...............~.......%
-%....#...#.........=.....~.......%
-%...#.....#......#X....#....~.......%
-%..#.......#.....######.....~.......%
-%.##.......#.................~.......%
-%................#...................%
-%%%%%....#########.....######.......%
-%.....~~~~~~~.................#......%
-%.....~~~~~~~.................#......%
-%.....~~~~~~~.................#......%
-%..........X....................#...%
-%....#..#..............#####...#...%
-%...#....#.............#   #...#...%
-%..#......#...........#  X  #..#...%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-""",
-    "dungeon": """
-%%%%%%%%%%
-%........%
-%..####..%
-%..#..#..%
-%.X#..#X.%
-%..####..%
-%........%
-%%%%%=%%%%
-""",
+# Map definitions - load from external files
+MAP_FILES = {
+    "forest": "forest.txt",
+    "caves": "caves.txt",
 }
+
+def load_maps():
+    """Load all maps from their files."""
+    maps = {}
+    for map_name, filename in MAP_FILES.items():
+        terrain = load_map_from_file(filename)
+        if terrain:
+            maps[map_name] = terrain
+        else:
+            print(f"Failed to load map '{map_name}' from '{filename}'")
+    return maps
 
 # Door definitions: (map_name, x, y) -> (destination_map, spawn_x, spawn_y)
 # Each door position maps to its destination
 DOORS = {
-    ("overworld", 18, 4): ("dungeon", 2, 4),      # Overworld upper door -> dungeon left entrance
-    ("overworld", 11, 12): ("dungeon", 7, 4),     # Overworld middle door -> dungeon right entrance
-    ("overworld", 25, 15): ("dungeon", 7, 4),     # Overworld lower door -> dungeon right entrance
-    ("dungeon", 2, 4): ("overworld", 18, 4),      # Dungeon left door -> overworld upper door
-    ("dungeon", 7, 4): ("overworld", 11, 12),     # Dungeon right door -> overworld middle door
+    ("forest", 26, 1): ("caves", 26, 1),          # Forest door -> caves entrance at top
+    ("forest", 2, 9): ("caves", 2, 9),            # Cliff door top -> caves entrance top left
+    ("forest", 1, 16): ("caves", 1, 16),          # Cliff door bottom -> caves entrance bottom left
+    ("forest", 29, 16): ("caves", 29, 16),        # Island door -> caves exit bottom right
+    ("caves", 26, 1): ("forest", 26, 1),          # Caves exit top -> forest door
+    ("caves", 2, 9): ("forest", 2, 9),            # Caves entrance top left -> forest cliff door
+    ("caves", 1, 16): ("forest", 1, 16),          # Caves entrance bottom left -> forest cliff door
+    ("caves", 29, 16): ("forest", 29, 16),        # Caves exit bottom right -> forest island door
 }
 
 def main(stdscr):
@@ -121,8 +108,11 @@ def main(stdscr):
     turn_duration = 250
     last_turn_time = time.time() * 1000
     
+    # Load all maps from external files
+    MAPS = load_maps()
+    
     # Current map tracking
-    current_map = "overworld"
+    current_map = "forest"
     
     # Color setup
     has_color = False
@@ -143,7 +133,7 @@ def main(stdscr):
     # Get terminal size
     max_y, max_x = stdscr.getmaxyx()
     # Load the current map from MAPS dictionary
-    terrain = load_map_from_string(MAPS[current_map])
+    terrain = [row[:] for row in MAPS[current_map]]  # Deep copy the map data
     
     # Get map dimensions
     map_height = len(terrain)
@@ -171,8 +161,7 @@ def main(stdscr):
     
     # Player starting positions for each map
     SPAWN_POINTS = {
-        "overworld": (2, 1),
-        "dungeon": (2, 1),
+        "forest": (1, 4),
     }
     
     # Player position - use the spawn tile if present, otherwise fallback to points
@@ -258,7 +247,7 @@ def main(stdscr):
                             map_changed = True
                             
                             # Reload the map
-                            terrain = load_map_from_string(MAPS[current_map])
+                            terrain = [row[:] for row in MAPS[current_map]]  # Deep copy the map data
                             map_height = len(terrain)
                             map_width = max(len(row) for row in terrain) if terrain else 0
                             for row in terrain:
