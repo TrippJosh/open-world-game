@@ -188,6 +188,7 @@ def adjacent_locked_door_message(map_name, terrain, x, y, inventory_items):
             return f"You need {required} to open the door."
     return None
 
+#######################################################################################################
 # Door definitions: (map_name, x, y) -> (destination_map, spawn_x, spawn_y)
 # Each door position maps to its destination
 DOORS = {
@@ -209,19 +210,21 @@ CHESTS = {
 
 LOCKS = {
     ("caves", 15, 16): "Rusted Key", #locked door that leads to the lake island containing the legendary longsword)
+    ("forest", 1, 4): "Bandit Key", #locked door that leads to victory area
+    ("forest", 1, 5): "Bandit Key",  #locked door that leads to victory area
 }
 
 ENEMIES = {
     "goblin": {
         "tile": "£",
         "health": 20,
-        "damage": 10,
+        "damage": 6,
         "defence": 1,
     },
     "bandit": {
         "tile": "&",
-        "health": 15,
-        "damage": 20,
+        "health": 30,
+        "damage": 12,
         "defence": 2,
     },
     "rat": {
@@ -230,6 +233,12 @@ ENEMIES = {
         "damage": 5,
         "defence": 0,
     },
+}
+
+PEOPLE = {
+    ("forest", 6, 3,): "This place has become very dangerous since the goblins moved in. Be careful out there!", #old man next to start location
+    ("forest", 1, 6,): "Nobody gets in or out of the valley, orders of the Bandit King!", #bandit guarding locked door to victory area
+    ("forest", 7, 17,): "They say there's a legendary sword in that little island over there" #hint to the legendary longsword chest in the island in the forest map
 }
 
 ENEMY_TILES = {v["tile"]: k for k, v in ENEMIES.items()}
@@ -400,7 +409,7 @@ def handle_command(command, parameter):
         if parameter == "health potion":
             if "Health Potion" in inventory_global:
                 inventory_global.remove("Health Potion")
-                health += 10
+                health += 50
                 if health > 100:
                     health = 100
                 command_feedback = f"Used Health Potion! Health: {health}"
@@ -466,12 +475,11 @@ def main(stdscr):
     swords = ["Old Sword", "Blunt Longsword", "Arming Sword", "Fine Longsword", "Masterwork Longsword", "Legendary Longsword"] ###swords[0] will have the damage of damage[0]
     damageList = [1, 2, 3, 5, 7, 10]
     armor = ["Leather Garments", "Padded Armour", "Studded Leather", "Chainmail Suit", "Old Cuirass", "Legendary Plate Armour"] ###armor[0] will have the defense of defense[0]
-    defenseList = [1, 2, 4, 7, 9, 15]
+    defenseList = [1, 2, 3, 5, 7, 10]
     inventory = [
         "Old Sword",
         "Leather Garments",
         "Health Potion",
-        "Rusted Key", ####endgame item currently used for testing
     ]
     playerAttack = damageList[0]
     playerDefence = defenseList[0]
@@ -511,7 +519,7 @@ def main(stdscr):
     
     # Player starting positions for each map
     SPAWN_POINTS = {
-        "forest": (1, 4),
+        "forest": (2, 4),
     }
     
     # Player position - use the spawn tile if present, otherwise fallback to points
@@ -649,7 +657,11 @@ def main(stdscr):
                 
                 # Only move if the destination is walkable
                 if is_walkable(terrain, current_map, new_player_x, new_player_y):
-                    if terrain[new_player_y][new_player_x] == '|' and (current_map, new_player_x, new_player_y) in LOCKS:
+                    #####################dialogue check
+                    if terrain[new_player_y][new_player_x] == '8' and (current_map, new_player_x, new_player_y) in PEOPLE: #dialogue check
+                        command_feedback_local = PEOPLE[(current_map, new_player_x, new_player_y)]
+                        feedback_expires_at = time.time() * 1000 + feedback_duration
+                    elif terrain[new_player_y][new_player_x] == '|' and (current_map, new_player_x, new_player_y) in LOCKS:
                         unlocked, required_key = unlock_door(current_map, new_player_x, new_player_y, inventory_global)
                         if unlocked:
                             command_feedback_local = f"Used {required_key} to unlock the door."
