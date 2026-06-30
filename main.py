@@ -73,16 +73,26 @@ def get_tile_color(tile, has_color):
     if not has_color:
         return 0
     
+    ############################################# tile directory
+
     if tile == '#':
         return curses.color_pair(2)  # Green for forest
     elif tile == '~':
         return curses.color_pair(3)  # Blue for water
     elif tile == '%':
-        return curses.color_pair(4)  # Red for walls
+        return curses.color_pair(4)  # Light grey for walls
     elif tile == 'X':
         return curses.color_pair(5)  # Yellow for doors
     elif tile == '=':
         return curses.color_pair(6)  # Yellow for chests
+    elif tile == 'x':
+        return curses.color_pair(9)  # Grey
+    elif tile == 'v':
+        return curses.color_pair(10)  # Light green
+    elif tile == '¬':
+        return curses.color_pair(11)  # Brown
+    elif tile == '*':
+        return curses.color_pair(8)  # Red for items or markers
     elif tile == ',':
         return curses.color_pair(7) | curses.A_DIM  # Road (light brown/limestone)
     elif tile in ENEMY_TILES:
@@ -104,6 +114,9 @@ def find_spawn_point(terrain):
 MAP_FILES = {
     "forest": "forest.txt",
     "caves": "caves.txt",
+    "town": "wellingham.txt",
+    "sea": "sea.txt",
+    "win_area": "win.txt",
 }
 
 def load_maps():
@@ -200,18 +213,29 @@ DOORS = {
     ("caves", 2, 9): ("forest", 2, 9),            # Caves entrance top left -> forest cliff door
     ("caves", 1, 16): ("forest", 1, 16),          # Caves entrance bottom left -> forest cliff door
     ("caves", 29, 16): ("forest", 29, 16),        # Caves exit bottom right -> forest island door
+    ("forest", 48, 4): ("town", 0, 4),            # Forest door -> town entrance
+    ("forest", 48, 5): ("town", 0, 5),            # Forest door -> town entrance
+    ("town", 0, 5): ("forest", 48, 5),            # Town entrance -> forest door
+    ("town", 0, 4): ("forest", 48, 4),            # Town entrance -> forest door
+    ("forest", 0, 4): ("win_area", 24, 0),          # Forest door -> win area
+    ("forest", 0, 5): ("win_area", 25, 0),          # Forest door -> win area
+    ("town", 3, 21): ("sea", 3, 0),              # Town door -> sea entrance
+    ("sea", 3, 0): ("town", 3, 21),              # Sea entrance -> town door
 }
 
 CHESTS = {
     ("forest", 24, 15): "Legendary Longsword", #chest in the island in the forest map
-    ("forest", 40, 11): "Padded Armour", #chest in the forest
-    ("caves", 13, 7): "Health Potion", #chest in the caves)
+    ("forest", 41, 11): "Padded Armour", #chest in the forest
+    ("caves", 13, 7): "Health Potion", #chest in the caves
+    ("town", 35, 14): "Health Potion", #chest in the town
+    ("sea", 3, 7): "Blunt Longsword", #chest in the sea
 }
 
 LOCKS = {
     ("caves", 15, 16): "Rusted Key", #locked door that leads to the lake island containing the legendary longsword)
     ("forest", 1, 4): "Bandit Key", #locked door that leads to victory area
     ("forest", 1, 5): "Bandit Key",  #locked door that leads to victory area
+    ("town", 37, 7): "Inkeep's Key", #inkeep's key doesnt exist, just a locked door that leads to the inkeep's room
 }
 
 ENEMIES = {
@@ -238,7 +262,13 @@ ENEMIES = {
 PEOPLE = {
     ("forest", 6, 3,): "This place has become very dangerous since the goblins moved in. Be careful out there!", #old man next to start location
     ("forest", 1, 6,): "Nobody gets in or out of the valley, orders of the Bandit King!", #bandit guarding locked door to victory area
-    ("forest", 7, 17,): "They say there's a legendary sword in that little island over there" #hint to the legendary longsword chest in the island in the forest map
+    ("forest", 7, 17,): "They say there's a legendary sword in that little island over there", #hint to the legendary longsword chest in the island in the forest map
+    ("town", 6, 8,): "Welcome to Wellingham! Unfortunately, we're currently suffering bandit raids from the east.",
+    ("town", 25, 8,): "Hello, I'm the inkeep! I would accept customers but I get my supplies from the north, and that part of the town has been overrun by goblins",
+    ("town", 12, 15,): "They say the bandit king has the key to the blockade on the road in the forest to the west. They also say there's something in the sea, to the south.",
+    ("win_area", 20, 7): "Congratulations for defeating the bandit king (or otherwise winning) without a save system!",
+    ("win_area", 29, 8): "This game was made by me, Josh. I hope you enjoyed it",
+    ("win_area", 32, 6): "Copyright 2026 Joshua Tripp (can i put my name there instead of a company?) 2026 all rights reserved"
 }
 
 ENEMY_TILES = {v["tile"]: k for k, v in ENEMIES.items()}
@@ -449,7 +479,7 @@ def main(stdscr):
             curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLACK)      # Grass
             curses.init_pair(2, curses.COLOR_GREEN, curses.COLOR_BLACK)      # Forest
             curses.init_pair(3, curses.COLOR_BLUE, curses.COLOR_BLACK)       # Water
-            curses.init_pair(4, curses.COLOR_RED, curses.COLOR_BLACK)        # Walls (brick red)
+            curses.init_pair(4, curses.COLOR_RED, curses.COLOR_BLACK)        # Walls
             curses.init_pair(5, curses.COLOR_YELLOW, curses.COLOR_BLACK)     # Doors (gold)
             curses.init_pair(6, curses.COLOR_YELLOW, curses.COLOR_BLACK)     # Chests (yellow)
             curses.init_pair(7, curses.COLOR_YELLOW, curses.COLOR_BLACK)     # Road (light brown/limestone)
